@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧠 Reconnaissance de Chiffres MNIST</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.17.1/ort.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #2c3e50;
+            font-size: 2.2em;
+        }
+        
+        .navigation {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .nav-btn {
+            background: #ecf0f1;
+            color: #2c3e50;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+        
+        .nav-btn:hover {
+            background: #d5dbdb;
+        }
+        
+        .nav-btn.active {
+            background: #3498db;
+            color: white;
+            border-color: #2980b9;
+        }
+        
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #3498db;
+            background: #ecf0f1;
+        }
+        
+        .status.loading {
+            border-left-color: #f39c12;
+            background: #fef9e7;
+        }
+        
+        .status.error {
+            border-left-color: #e74c3c;
+            background: #fdedec;
+            color: #c0392b;
+        }
+        
+        .status.success {
+            border-left-color: #27ae60;
+            background: #eafaf1;
+            color: #1e8449;
+        }
+        
+        .drawing-section {
+            text-align: center;
+            margin: 30px 0;
+        }
+        
+        .drawing-instructions {
+            margin-bottom: 15px;
+            font-size: 1.1em;
+            color: #555;
+        }
+        
+        #canvas {
+            border: 2px solid #bdc3c7;
+            border-radius: 4px;
+            cursor: crosshair;
+            background: black;
+            display: block;
+            margin: 0 auto;
+        }
+        
+        #canvas:hover {
+            border-color: #3498db;
+        }
+        
+        .controls {
+            text-align: center;
+            margin: 25px 0;
+        }
+        
+        button {
+            background: #3498db;
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 0 10px;
+            min-width: 100px;
+        }
+        
+        button:hover:not(:disabled) {
+            background: #2980b9;
+        }
+        
+        button:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+        }
+        
+        .predict-btn {
+            background: #27ae60;
+        }
+
+        .predict-btn:hover:not(:disabled) {
+            background: #229954;
+        }
+        
+        .prediction-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .prediction-section h3 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        
+        .result-main {
+            font-size: 4em;
+            font-weight: bold;
+            color: #27ae60;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .confidence-info {
+            text-align: center;
+            font-size: 1.2em;
+            margin: 15px 0;
+            color: #555;
+        }
+        
+        .probabilities-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .prob-item {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px 10px;
+            text-align: center;
+        }
+        
+        .prob-item.max {
+            border-color: #27ae60;
+            background: #eafaf1;
+        }
+        
+        .prob-number {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #2c3e50;
+        }
+        
+        .prob-item.max .prob-number {
+            color: #27ae60;
+        }
+        
+        .prob-value {
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        .debug-section {
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .debug-section h4 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+        
+        #debugCanvas {
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+            background: black;
+            image-rendering: pixelated;
+        }
+        
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+            text-align: center;
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .tech-info {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        
+        .tech-badge {
+            background: #ecf0f1;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 0.8em;
+            color: #555;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+            
+            h1 {
+                font-size: 1.8em;
+            }
+            
+            #canvas {
+                width: 100%;
+                height: auto;
+            }
+            
+            .probabilities-grid {
+                grid-template-columns: repeat(5, 1fr);
+                gap: 8px;
+            }
+            
+            .prob-number {
+                font-size: 1.2em;
+            }
+            
+            button {
+                padding: 10px 16px;
+                font-size: 14px;
+                margin: 5px;
+            }
+
+            .result-main {
+                font-size: 3em;
+            }
+
+            .navigation {
+                gap: 10px;
+            }
+
+            .nav-btn {
+                padding: 10px 16px;
+                font-size: 0.9em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧠 Reconnaissance de Chiffres MNIST</h1>
+        
+        <!-- Navigation -->
+        <div class="navigation">
+            <a href="index.html" class="nav-btn active">🔢 Chiffres MNIST</a>
+            <a href="logo_interface.html" class="nav-btn">🏷️ Logos</a>
+        </div>
+        
+        <div class="status loading" id="status">
+            <div>🔄 Chargement du modèle IA...</div>
+        </div>
+        
+        <div class="drawing-section">
+            <div class="drawing-instructions">
+                ✏️ Dessinez un chiffre de 0 à 9 dans la zone ci-dessous
+            </div>
+            <canvas id="canvas" width="280" height="280"></canvas>
+        </div>
+        
+        <div class="controls">
+            <button onclick="clearCanvas()" title="Effacer le dessin">
+                🗑️ Effacer
+            </button>
+            <button onclick="predict()" id="predictBtn" class="predict-btn" disabled title="Lancer la prédiction">
+                🎯 Prédire
+            </button>
+        </div>
+        
+        <div class="prediction-section" id="prediction" style="display: none;">
+            <h3>📊 Résultat de la prédiction</h3>
+            <div class="result-main" id="result">-</div>
+            <div class="confidence-info" id="confidence">-</div>
+            
+            <h4 style="margin: 20px 0 10px 0;">Probabilités pour chaque chiffre :</h4>
+            <div class="probabilities-grid" id="probabilities"></div>
+            
+            <div class="debug-section">
+                <h4>🔍 Image vue par l'IA (28x28) :</h4>
+                <canvas id="debugCanvas" width="140" height="140"></canvas>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <div>Modèle entraîné avec PyTorch • Interface web avec ONNX.js</div>
+            <div class="tech-info">
+                <span class="tech-badge">🧠 CNN</span>
+                <span class="tech-badge">🔥 PyTorch</span>
+                <span class="tech-badge">⚡ ONNX</span>
+                <span class="tech-badge">🌐 JavaScript</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let model = null;
+        let isDrawing = false;
+        
+        // Configuration du canvas
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Configuration du dessin
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 15; // Réduit de 20 à 15 pour des traits plus fins
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        
+        // Initialiser le canvas
+        function clearCanvas() {
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            document.getElementById('prediction').style.display = 'none';
+        }
+        
+        // Initialiser
+        clearCanvas();
+        
+        // Gestion du dessin - Souris
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+        
+        // Gestion du dessin - Tactile
+        canvas.addEventListener('touchstart', handleTouch, { passive: false });
+        canvas.addEventListener('touchmove', handleTouch, { passive: false });
+        canvas.addEventListener('touchend', stopDrawing);
+        
+        function startDrawing(e) {
+            isDrawing = true;
+            draw(e);
+        }
+        
+        function draw(e) {
+            if (!isDrawing) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            const x = (e.clientX - rect.left) * scaleX;
+            const y = (e.clientY - rect.top) * scaleY;
+            
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        }
+        
+        function stopDrawing() {
+            if (isDrawing) {
+                isDrawing = false;
+                ctx.beginPath();
+            }
+        }
+        
+        function handleTouch(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent(
+                e.type === 'touchstart' ? 'mousedown' : 
+                e.type === 'touchmove' ? 'mousemove' : 'mouseup', 
+                {
+                    clientX: touch.clientX,
+                    clientY: touch.clientY
+                }
+            );
+            canvas.dispatchEvent(mouseEvent);
+        }
+        
+        // Chargement du modèle ONNX
+        async function loadModel() {
+            try {
+                console.log('🔄 Chargement du modèle ONNX...');
+                model = await ort.InferenceSession.create('./mnist_model.onnx');
+                
+                const statusEl = document.getElementById('status');
+                statusEl.className = 'status success';
+                statusEl.innerHTML = '<div>✅ Modèle IA chargé avec succès! Prêt à reconnaître vos chiffres.</div>';
+                
+                document.getElementById('predictBtn').disabled = false;
+                console.log('✅ Modèle chargé!');
+            } catch (error) {
+                console.error('❌ Erreur lors du chargement du modèle:', error);
+                
+                const statusEl = document.getElementById('status');
+                statusEl.className = 'status error';
+                statusEl.innerHTML = `
+                    <div><strong>❌ Erreur de chargement</strong></div>
+                    <div style="font-size: 0.9em; margin-top: 10px;">
+                        Assurez-vous que <code>mnist_model.onnx</code> est présent et servez via un serveur web local.
+                    </div>
+                    <div style="font-size: 0.8em; margin-top: 5px; opacity: 0.8;">
+                        Exemple: <code>python -m http.server 8000</code>
+                    </div>
+                `;
+            }
+        }
+        
+        // Préprocessing de l'image amélioré
+        function preprocessCanvas() {
+            // Créer un canvas temporaire 28x28
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = 28;
+            tempCanvas.height = 28;
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            // Fond noir
+            tempCtx.fillStyle = 'black';
+            tempCtx.fillRect(0, 0, 28, 28);
+            
+            // Redimensionner avec antialiasing
+            tempCtx.imageSmoothingEnabled = true;
+            tempCtx.imageSmoothingQuality = 'high';
+            tempCtx.drawImage(canvas, 0, 0, 28, 28);
+            
+            // Obtenir les données des pixels
+            const imageData = tempCtx.getImageData(0, 0, 28, 28);
+            const data = imageData.data;
+            
+            // Calculer le centre de masse pour centrer l'image
+            let sumX = 0, sumY = 0, totalPixels = 0;
+            const grayData = [];
+            
+            // Première passe : convertir en niveaux de gris et calculer le centre de masse
+            for (let y = 0; y < 28; y++) {
+                grayData[y] = [];
+                for (let x = 0; x < 28; x++) {
+                    const i = (y * 28 + x) * 4;
+                    const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                    grayData[y][x] = gray / 255.0; // Normaliser à [0,1]
+                    
+                    if (gray > 128) { // Si c'est plus blanc que gris
+                        sumX += x;
+                        sumY += y;
+                        totalPixels++;
+                    }
+                }
+            }
+            
+            // Créer le tensor d'entrée centré
+            const input = new Float32Array(1 * 1 * 28 * 28);
+            
+            if (totalPixels > 0) {
+                // Calculer l'offset pour centrer
+                const centerX = Math.round(sumX / totalPixels);
+                const centerY = Math.round(sumY / totalPixels);
+                const offsetX = Math.round(14 - centerX); // Centrer en (14,14)
+                const offsetY = Math.round(14 - centerY);
+                
+                // Deuxième passe : copier avec offset pour centrer
+                for (let y = 0; y < 28; y++) {
+                    for (let x = 0; x < 28; x++) {
+                        const srcX = x - offsetX;
+                        const srcY = y - offsetY;
+                        
+                        if (srcX >= 0 && srcX < 28 && srcY >= 0 && srcY < 28) {
+                            input[y * 28 + x] = grayData[srcY][srcX];
+                        } else {
+                            input[y * 28 + x] = 0.0; // Fond noir
+                        }
+                    }
+                }
+            } else {
+                // Si pas de pixels détectés, copier tel quel
+                for (let i = 0; i < 28 * 28; i++) {
+                    const y = Math.floor(i / 28);
+                    const x = i % 28;
+                    input[i] = grayData[y][x];
+                }
+            }
+            
+            return input;
+        }
+        
+        // Fonction pour afficher l'image debug 28x28
+        function displayDebugImage(inputData) {
+            const debugCanvas = document.getElementById('debugCanvas');
+            const debugCtx = debugCanvas.getContext('2d');
+            
+            // Créer une ImageData 28x28
+            const imageData = debugCtx.createImageData(28, 28);
+            const data = imageData.data;
+            
+            for (let i = 0; i < 28 * 28; i++) {
+                const value = Math.round(inputData[i] * 255);
+                const pixelIndex = i * 4;
+                data[pixelIndex] = value;     // Rouge
+                data[pixelIndex + 1] = value; // Vert
+                data[pixelIndex + 2] = value; // Bleu
+                data[pixelIndex + 3] = 255;   // Alpha
+            }
+            
+            // Créer un canvas temporaire pour l'image 28x28
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = 28;
+            tempCanvas.height = 28;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.putImageData(imageData, 0, 0);
+            
+            // Effacer et redessiner sur le canvas debug (140x140)
+            debugCtx.fillStyle = 'black';
+            debugCtx.fillRect(0, 0, 140, 140);
+            debugCtx.imageSmoothingEnabled = false; // Pixels nets
+            debugCtx.drawImage(tempCanvas, 0, 0, 140, 140);
+        }
+        
+        // Fonction softmax pour calculer les probabilités
+        function softmax(arr) {
+            const maxVal = Math.max(...arr);
+            const expVals = arr.map(val => Math.exp(val - maxVal));
+            const sumExp = expVals.reduce((sum, val) => sum + val, 0);
+            return expVals.map(val => val / sumExp);
+        }
+        
+        // Prédiction
+        async function predict() {
+            if (!model) {
+                alert('⚠️ Le modèle n\'est pas encore chargé!');
+                return;
+            }
+            
+            try {
+                console.log('🧪 Début de la prédiction...');
+                
+                // Désactiver temporairement le bouton
+                const predictBtn = document.getElementById('predictBtn');
+                predictBtn.disabled = true;
+                predictBtn.textContent = '🔄 Analyse...';
+                
+                // Préprocesser l'image
+                const inputData = preprocessCanvas();
+                console.log('✅ Image préprocessée');
+                
+                // Afficher l'image debug 28x28
+                displayDebugImage(inputData);
+                
+                // Debug: visualiser l'image 28x28 dans la console
+                console.log('🔍 Données d\'entrée (28x28):');
+                let debugStr = '';
+                for (let y = 0; y < 28; y++) {
+                    let row = '';
+                    for (let x = 0; x < 28; x++) {
+                        const val = inputData[y * 28 + x];
+                        row += val > 0.5 ? '█' : val > 0.2 ? '▓' : val > 0.1 ? '░' : ' ';
+                    }
+                    debugStr += row + '\n';
+                }
+                console.log(debugStr);
+                
+                // Créer le tensor d'entrée
+                const inputTensor = new ort.Tensor('float32', inputData, [1, 1, 28, 28]);
+                
+                // Faire l'inférence
+                const results = await model.run({ input: inputTensor });
+                const output = Array.from(results.output.data);
+                console.log('✅ Prédiction terminée:', output);
+                
+                // Calculer les probabilités avec softmax
+                const probabilities = softmax(output);
+                
+                // Trouver la classe prédite
+                let maxIndex = 0;
+                let maxProb = probabilities[0];
+                for (let i = 1; i < probabilities.length; i++) {
+                    if (probabilities[i] > maxProb) {
+                        maxProb = probabilities[i];
+                        maxIndex = i;
+                    }
+                }
+                
+                // Afficher les résultats
+                document.getElementById('result').textContent = maxIndex;
+                document.getElementById('confidence').textContent = 
+                    `Confiance: ${(maxProb * 100).toFixed(1)}% • Prédiction: "${maxIndex}"`;
+                
+                // Afficher toutes les probabilités
+                const probDiv = document.getElementById('probabilities');
+                probDiv.innerHTML = '';
+                for (let i = 0; i < 10; i++) {
+                    const probItem = document.createElement('div');
+                    probItem.className = 'prob-item' + (i === maxIndex ? ' max' : '');
+                    probItem.innerHTML = `
+                        <div class="prob-number">${i}</div>
+                        <div class="prob-value">${(probabilities[i] * 100).toFixed(1)}%</div>
+                    `;
+                    probDiv.appendChild(probItem);
+                }
+                
+                document.getElementById('prediction').style.display = 'block';
+                
+                console.log(`🎉 Prédiction: ${maxIndex} (${(maxProb * 100).toFixed(1)}%)`);
+                
+            } catch (error) {
+                console.error('❌ Erreur lors de la prédiction:', error);
+                alert('❌ Erreur lors de la prédiction: ' + error.message);
+            } finally {
+                // Réactiver le bouton
+                const predictBtn = document.getElementById('predictBtn');
+                predictBtn.disabled = false;
+                predictBtn.innerHTML = '🎯 Prédire';
+            }
+        }
+        
+        // Raccourcis clavier
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                if (!document.getElementById('predictBtn').disabled) {
+                    predict();
+                }
+            } else if (e.key === 'Escape' || e.key === 'Delete') {
+                e.preventDefault();
+                clearCanvas();
+            }
+        });
+        
+        // Charger le modèle au démarrage
+        console.log('🚀 Initialisation de l\'application...');
+        loadModel();
+    </script>
+</body>
+</html>

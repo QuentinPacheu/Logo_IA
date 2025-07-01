@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏷️ Reconnaissance de Logos</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.17.1/ort.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #2c3e50;
+            font-size: 2.2em;
+        }
+        
+        .navigation {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .nav-btn {
+            background: #ecf0f1;
+            color: #2c3e50;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+        
+        .nav-btn:hover {
+            background: #d5dbdb;
+            transform: translateY(-1px);
+        }
+        
+        .nav-btn.active {
+            background: #3498db;
+            color: white;
+            border-color: #2980b9;
+        }
+        
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #3498db;
+            background: #ecf0f1;
+        }
+        
+        .status.loading {
+            border-left-color: #f39c12;
+            background: #fef9e7;
+        }
+        
+        .status.error {
+            border-left-color: #e74c3c;
+            background: #fdedec;
+            color: #c0392b;
+        }
+        
+        .status.success {
+            border-left-color: #27ae60;
+            background: #eafaf1;
+            color: #1e8449;
+        }
+
+        .input-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .upload-area, .search-area {
+            background: #f8f9fa;
+            border: 2px dashed #bdc3c7;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .upload-area {
+            cursor: pointer;
+        }
+
+        .upload-area:hover {
+            border-color: #3498db;
+            background: #ecf0f1;
+        }
+
+        .upload-area.dragover {
+            border-color: #f39c12;
+            background: #fef9e7;
+        }
+
+        .upload-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+            color: #7f8c8d;
+        }
+
+        .upload-text {
+            font-size: 1.1em;
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+
+        .upload-hint {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .search-title {
+            font-size: 1.3em;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #bdc3c7;
+            border-radius: 4px;
+            background: white;
+            color: #2c3e50;
+            font-size: 1em;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .search-input::placeholder {
+            color: #95a5a6;
+        }
+
+        .search-input:focus {
+            border-color: #3498db;
+        }
+
+        .search-btn {
+            width: 100%;
+            margin-top: 15px;
+            padding: 12px;
+            background: #27ae60;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            font-size: 1em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .search-btn:hover {
+            background: #229954;
+        }
+
+        .search-examples {
+            margin-top: 15px;
+            font-size: 0.9em;
+            color: #7f8c8d;
+            text-align: left;
+        }
+
+        .search-examples strong {
+            color: #2c3e50;
+        }
+
+        .search-suggestions {
+            margin-top: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .suggestion-tag {
+            background: #ecf0f1;
+            border: 1px solid #bdc3c7;
+            border-radius: 15px;
+            padding: 5px 12px;
+            font-size: 0.8em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: #2c3e50;
+        }
+
+        .suggestion-tag:hover {
+            background: #3498db;
+            color: white;
+            border-color: #3498db;
+        }
+
+        .preview-area {
+            text-align: center;
+            margin: 30px 0;
+            display: none;
+        }
+
+        .preview-area h3 {
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+
+        .preview-image {
+            max-width: 300px;
+            max-height: 300px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border: 2px solid #bdc3c7;
+        }
+
+        .controls {
+            text-align: center;
+            margin: 25px 0;
+        }
+        
+        button {
+            background: #3498db;
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 0 10px;
+            min-width: 100px;
+        }
+        
+        button:hover:not(:disabled) {
+            background: #2980b9;
+        }
+        
+        button:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+        }
+        
+        .analyze-btn {
+            background: #27ae60;
+        }
+
+        .analyze-btn:hover:not(:disabled) {
+            background: #229954;
+        }
+
+        .results-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+            display: none;
+        }
+        
+        .results-section h3 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        
+        .result-main {
+            font-size: 3em;
+            font-weight: bold;
+            color: #27ae60;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .confidence-info {
+            text-align: center;
+            font-size: 1.2em;
+            margin: 15px 0;
+            color: #555;
+        }
+        
+        .top-predictions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .prediction-card {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        
+        .prediction-card.top {
+            border-color: #27ae60;
+            background: #eafaf1;
+        }
+        
+        .prediction-brand {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #2c3e50;
+        }
+        
+        .prediction-card.top .prediction-brand {
+            color: #27ae60;
+        }
+        
+        .prediction-confidence {
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+            text-align: center;
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .tech-info {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        
+        .tech-badge {
+            background: #ecf0f1;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 0.8em;
+            color: #555;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .input-section {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+
+            h1 {
+                font-size: 1.8em;
+            }
+
+            .top-predictions {
+                grid-template-columns: 1fr;
+            }
+
+            button {
+                padding: 10px 16px;
+                font-size: 14px;
+                margin: 5px;
+            }
+
+            .result-main {
+                font-size: 2.5em;
+            }
+
+            .navigation {
+                gap: 10px;
+            }
+
+            .nav-btn {
+                padding: 10px 16px;
+                font-size: 0.9em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏷️ Reconnaissance de Logos</h1>
+        
+        <!-- Navigation -->
+        <div class="navigation">
+            <a href="index.html" class="nav-btn">🔢 Chiffres MNIST</a>
+            <a href="logo_interface.html" class="nav-btn active">🏷️ Logos</a>
+        </div>
+        
+        <div class="status loading" id="status">
+            <div>🔄 Chargement du modèle d'IA...</div>
+        </div>
+
+        <div class="input-section">
+            <!-- Zone d'upload d'image -->
+            <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                <div class="upload-icon">📤</div>
+                <div class="upload-text">Glissez une image ici</div>
+                <div class="upload-text">ou cliquez pour parcourir</div>
+                <div class="upload-hint">Formats: JPG, PNG, GIF • Max: 10MB</div>
+                <input type="file" id="fileInput" accept="image/*">
+            </div>
+
+            <!-- Zone de recherche textuelle -->
+            <div class="search-area">
+                <div class="search-title">🔍 Recherche par description</div>
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    class="search-input" 
+                    placeholder="Décrivez le logo: 'logo rouge et blanc', 'fast food', 'swoosh'..."
+                >
+                <button class="search-btn" onclick="searchByDescription()">
+                    🔍 Rechercher
+                </button>
+                
+                <div class="search-examples">
+                    <strong>Exemples:</strong><br>
+                    • "logo rouge et blanc" • "fast food" • "technologie pomme"<br>
+                    • "swoosh" • "trois bandes" • "M jaune"
+                </div>
+
+                <div class="search-suggestions">
+                    <div class="suggestion-tag" onclick="fillSearch('logo rouge et blanc')">rouge et blanc</div>
+                    <div class="suggestion-tag" onclick="fillSearch('fast food')">fast food</div>
+                    <div class="suggestion-tag" onclick="fillSearch('technologie')">technologie</div>
+                    <div class="suggestion-tag" onclick="fillSearch('swoosh')">swoosh</div>
+                    <div class="suggestion-tag" onclick="fillSearch('trois bandes')">trois bandes</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Zone de prévisualisation -->
+        <div class="preview-area" id="previewArea">
+            <h3>📷 Image à analyser :</h3>
+            <img id="previewImage" class="preview-image" alt="Aperçu">
+        </div>
+
+        <!-- Contrôles -->
+        <div class="controls">
+            <button onclick="clearAll()">🗑️ Effacer</button>
+            <button onclick="analyzeImage()" id="analyzeBtn" class="analyze-btn" disabled>
+                🔍 Analyser
+            </button>
+        </div>
+
+        <!-- Résultats -->
+        <div class="results-section" id="resultsSection">
+            <h3>🎯 Résultats de la reconnaissance</h3>
+            <div class="result-main" id="resultBrand">-</div>
+            <div class="confidence-info" id="resultConfidence">-</div>
+            
+            <h4 style="margin: 20px 0 15px 0; text-align: center; color: #2c3e50;">🏆 Top 5 des prédictions :</h4>
+            <div class="top-predictions" id="topPredictions"></div>
+        </div>
+
+        <div class="footer">
+            <div>Intelligence Artificielle • Reconnaissance de Logos • ONNX.js</div>
+            <div class="tech-info">
+                <span class="tech-badge">🧠 CNN</span>
+                <span class="tech-badge">🔥 PyTorch</span>
+                <span class="tech-badge">⚡ ONNX</span>
+                <span class="tech-badge">🌐 JavaScript</span>
+                <span class="tech-badge">📱 Responsive</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let model = null;
+        let classMapping = null;
+        let currentImageData = null;
+
+        // Mapping de recherche textuelle (sera étendu dynamiquement)
+        const searchKeywords = {
+            "coca cola": ["rouge", "blanc", "cola", "boisson", "soda"],
+            "pepsi": ["bleu", "rouge", "blanc", "cola", "boisson", "soda"],
+            "mcdonald": ["M", "jaune", "rouge", "fast food", "hamburger"],
+            "nike": ["swoosh", "sport", "chaussure", "just do it"],
+            "adidas": ["trois bandes", "sport", "chaussure", "trefoil"],
+            "apple": ["pomme", "technologie", "mac", "iphone", "mordu"],
+            "google": ["coloré", "multicolore", "recherche", "technologie"],
+            "facebook": ["f", "bleu", "social", "réseau"],
+            "amazon": ["sourire", "orange", "e-commerce", "livraison"],
+            "starbucks": ["vert", "sirène", "café", "étoile"],
+            "bmw": ["bleu", "blanc", "voiture", "luxe", "automobile"],
+            "mercedes": ["étoile", "argenté", "voiture", "luxe", "automobile"],
+            "microsoft": ["fenêtre", "coloré", "technologie", "windows"],
+            "samsung": ["bleu", "technologie", "électronique"],
+            "intel": ["bleu", "processeur", "technologie"]
+        };
+
+        // Chargement du modèle et des classes
+        async function loadModel() {
+            try {
+                console.log('🔄 Chargement du modèle...');
+                
+                // Charger le mapping des classes
+                const classResponse = await fetch('./logo_classes.json');
+                classMapping = await classResponse.json();
+                console.log('✅ Classes chargées:', Object.keys(classMapping.idx_to_brand).length);
+                
+                // Charger le modèle ONNX
+                model = await ort.InferenceSession.create('./logo_model_top10.onnx');
+                console.log('✅ Modèle ONNX chargé!');
+                
+                const statusEl = document.getElementById('status');
+                statusEl.className = 'status success';
+                statusEl.innerHTML = `
+                    <div>✅ Modèle IA chargé avec succès!</div>
+                    <div style="font-size: 0.9em; margin-top: 8px;">
+                        ${Object.keys(classMapping.idx_to_brand).length} marques reconnues • Prêt à analyser vos logos
+                    </div>
+                `;
+                
+            } catch (error) {
+                console.error('❌ Erreur chargement:', error);
+                const statusEl = document.getElementById('status');
+                statusEl.className = 'status error';
+                statusEl.innerHTML = `
+                    <div><strong>❌ Erreur de chargement</strong></div>
+                    <div style="font-size: 0.9em; margin-top: 8px;">
+                        Vérifiez que <code>logo_model.onnx</code> et <code>logo_classes.json</code> sont présents
+                    </div>
+                    <div style="font-size: 0.8em; margin-top: 5px;">
+                        Servez via: <code>python -m http.server 8000</code>
+                    </div>
+                `;
+            }
+        }
+
+        // Gestion du drag & drop
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, () => uploadArea.classList.add('dragover'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, () => uploadArea.classList.remove('dragover'), false);
+        });
+
+        uploadArea.addEventListener('drop', handleDrop, false);
+        fileInput.addEventListener('change', handleFileSelect, false);
+
+        function handleDrop(e) {
+            const files = e.dataTransfer.files;
+            handleFiles(files);
+        }
+
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            handleFiles(files);
+        }
+
+        function handleFiles(files) {
+            if (files.length > 0) {
+                const file = files[0];
+                if (file.type.startsWith('image/')) {
+                    displayImage(file);
+                } else {
+                    alert('⚠️ Veuillez sélectionner un fichier image.');
+                }
+            }
+        }
+
+        function displayImage(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const previewArea = document.getElementById('previewArea');
+                const previewImage = document.getElementById('previewImage');
+                
+                previewImage.src = e.target.result;
+                previewArea.style.display = 'block';
+                
+                // Stocker les données d'image
+                currentImageData = e.target.result;
+                document.getElementById('analyzeBtn').disabled = false;
+                
+                console.log('✅ Image chargée pour analyse');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Préprocessing de l'image
+        function preprocessImage(imageSrc) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = function() {
+                    // Créer un canvas 224x224
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 224;
+                    canvas.height = 224;
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Redimensionner l'image
+                    ctx.drawImage(img, 0, 0, 224, 224);
+                    
+                    // Obtenir les données pixels
+                    const imageData = ctx.getImageData(0, 0, 224, 224);
+                    const data = imageData.data;
+                    
+                    // Normalisation ImageNet
+                    const mean = [0.485, 0.456, 0.406];
+                    const std = [0.229, 0.224, 0.225];
+                    
+                    const input = new Float32Array(3 * 224 * 224);
+                    
+                    for (let i = 0; i < 224 * 224; i++) {
+                        // RGB vers tensor CHW format
+                        const r = data[i * 4] / 255.0;
+                        const g = data[i * 4 + 1] / 255.0;
+                        const b = data[i * 4 + 2] / 255.0;
+                        
+                        // Normalisation
+                        input[i] = (r - mean[0]) / std[0]; // Canal R
+                        input[i + 224 * 224] = (g - mean[1]) / std[1]; // Canal G
+                        input[i + 2 * 224 * 224] = (b - mean[2]) / std[2]; // Canal B
+                    }
+                    
+                    resolve(input);
+                };
+                img.src = imageSrc;
+            });
+        }
+
+        // Analyse de l'image
+        async function analyzeImage() {
+            if (!model || !currentImageData) {
+                alert('⚠️ Modèle non chargé ou aucune image sélectionnée');
+                return;
+            }
+
+            try {
+                const analyzeBtn = document.getElementById('analyzeBtn');
+                analyzeBtn.disabled = true;
+                analyzeBtn.textContent = '🔄 Analyse en cours...';
+
+                console.log('🎯 Début de l\'analyse...');
+
+                // Préprocesser l'image
+                const inputData = await preprocessImage(currentImageData);
+                console.log('✅ Image préprocessée');
+
+                // Créer le tensor d'entrée
+                const inputTensor = new ort.Tensor('float32', inputData, [1, 3, 224, 224]);
+
+                // Inférence
+                const results = await model.run({ input: inputTensor });
+                const output = Array.from(results.output.data);
+
+                console.log('✅ Prédiction terminée');
+
+                // Calculer les probabilités
+                const probabilities = softmax(output);
+
+                // Obtenir les top 5 prédictions
+                const predictions = probabilities
+                    .map((prob, idx) => ({
+                        brand: classMapping.idx_to_brand[idx],
+                        confidence: prob,
+                        index: idx
+                    }))
+                    .sort((a, b) => b.confidence - a.confidence)
+                    .slice(0, 5);
+
+                // Afficher les résultats
+                displayResults(predictions);
+
+            } catch (error) {
+                console.error('❌ Erreur analyse:', error);
+                alert('❌ Erreur lors de l\'analyse: ' + error.message);
+            } finally {
+                const analyzeBtn = document.getElementById('analyzeBtn');
+                analyzeBtn.disabled = false;
+                analyzeBtn.textContent = '🔍 Analyser';
+            }
+        }
+
+        // Fonction softmax
+        function softmax(arr) {
+            const maxVal = Math.max(...arr);
+            const expVals = arr.map(val => Math.exp(val - maxVal));
+            const sumExp = expVals.reduce((sum, val) => sum + val, 0);
+            return expVals.map(val => val / sumExp);
+        }
+
+        // Affichage des résultats
+        function displayResults(predictions) {
+            const topPred = predictions[0];
+            
+            document.getElementById('resultBrand').textContent = topPred.brand.toUpperCase();
+            document.getElementById('resultConfidence').textContent = 
+                `Confiance: ${(topPred.confidence * 100).toFixed(1)}% • Marque: "${topPred.brand}"`;
+
+            // Top 5
+            const topPredictionsDiv = document.getElementById('topPredictions');
+            topPredictionsDiv.innerHTML = '';
+
+            predictions.forEach((pred, index) => {
+                const card = document.createElement('div');
+                card.className = 'prediction-card' + (index === 0 ? ' top' : '');
+                card.innerHTML = `
+                    <div class="prediction-brand">${pred.brand}</div>
+                    <div class="prediction-confidence">${(pred.confidence * 100).toFixed(1)}%</div>
+                `;
+                topPredictionsDiv.appendChild(card);
+            });
+
+            document.getElementById('resultsSection').style.display = 'block';
+            console.log(`🎉 Résultat: ${topPred.brand} (${(topPred.confidence * 100).toFixed(1)}%)`);
+        }
+
+        // Recherche par description
+        function searchByDescription() {
+            const query = document.getElementById('searchInput').value.toLowerCase().trim();
+            if (!query) {
+                alert('⚠️ Veuillez entrer une description');
+                return;
+            }
+
+            console.log('🔍 Recherche:', query);
+
+            // Rechercher dans les mots-clés
+            const matches = [];
+            for (const [brand, keywords] of Object.entries(searchKeywords)) {
+                const score = keywords.reduce((acc, keyword) => {
+                    return acc + (query.includes(keyword.toLowerCase()) ? 1 : 0);
+                }, 0);
+                if (score > 0) {
+                    matches.push({ brand, score });
+                }
+            }
+
+            // Trier par score
+            matches.sort((a, b) => b.score - a.score);
+
+            if (matches.length > 0) {
+                // Simuler des résultats de recherche
+                const searchResults = matches.slice(0, 5).map((match, index) => ({
+                    brand: match.brand,
+                    confidence: Math.max(0.3, (matches.length - index) / matches.length * 0.8 + Math.random() * 0.2),
+                    index: index
+                }));
+
+                displayResults(searchResults);
+                console.log('✅ Résultats de recherche affichés');
+            } else {
+                alert(`❌ Aucune marque trouvée pour "${query}". Essayez: "rouge", "swoosh", "fast food", etc.`);
+            }
+        }
+
+        // Remplir la recherche avec une suggestion
+        function fillSearch(text) {
+            document.getElementById('searchInput').value = text;
+        }
+
+        // Effacer tout
+        function clearAll() {
+            currentImageData = null;
+            document.getElementById('previewArea').style.display = 'none';
+            document.getElementById('resultsSection').style.display = 'none';
+            document.getElementById('analyzeBtn').disabled = true;
+            document.getElementById('fileInput').value = '';
+            document.getElementById('searchInput').value = '';
+            console.log('🗑️ Interface effacée');
+        }
+
+        // Raccourcis clavier
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && document.getElementById('searchInput') === document.activeElement) {
+                searchByDescription();
+            } else if (e.key === 'Escape') {
+                clearAll();
+            }
+        });
+
+        // Initialisation
+        console.log('🚀 Initialisation de l\'application...');
+        loadModel();
+    </script>
+</body>
+</html>

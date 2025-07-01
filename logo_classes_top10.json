@@ -1,0 +1,27 @@
+{
+  "brand_to_idx": {
+    "Amazon": 0,
+    "American Express": 1,
+    "Apple": 2,
+    "BMW": 3,
+    "Budweiser": 4,
+    "Coca-Cola": 5,
+    "Disney": 6,
+    "Google": 7,
+    "Honda": 8,
+    "Intel": 9
+  },
+  "idx_to_brand": {
+    "0": "Amazon",
+    "1": "American Express",
+    "2": "Apple",
+    "3": "BMW",
+    "4": "Budweiser",
+    "5": "Coca-Cola",
+    "6": "Disney",
+    "7": "Google",
+    "8": "Honda",
+    "9": "Intel"
+  },
+  "num_classes": 10
+}
