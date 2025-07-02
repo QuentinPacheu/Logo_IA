@@ -531,7 +531,9 @@
                 console.log('✅ Classes chargées:', Object.keys(classMapping.idx_to_brand).length);
                 
                 // Charger le modèle ONNX
-                model = await ort.InferenceSession.create('./logo_model_top10.onnx');
+                model = await ort.InferenceSession.create('./logo_model_top10.onnx', {
+                    executionProviders: ['webgl', 'wasm']
+                });
                 console.log('✅ Modèle ONNX chargé!');
                 
                 const statusEl = document.getElementById('status');
